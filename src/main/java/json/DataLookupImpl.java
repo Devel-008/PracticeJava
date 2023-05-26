@@ -152,7 +152,6 @@ public class DataLookupImpl {
         return dataList;
     }
     private Iterator<List<Map<String, Object>>> fetchAll(String sqlQuery, Connection connection){
-        Iterator<List<Map<String, Object>>> listIterator = null;
         List<List<Map<String, Object>>> dataList = new ArrayList<>();
         List<Map<String ,Object>> data = new ArrayList<>();
         Statement statement;
@@ -170,11 +169,11 @@ public class DataLookupImpl {
                 }
                 data.add(dataMap);
             }
-
+            dataList.add(data);
         }catch (SQLException e){
             logger.error("Error while executing query.", e);
         }
-        return null;
+        return dataList.iterator();
     }
 
     private Connection createConnection() {
