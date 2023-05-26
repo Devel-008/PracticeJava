@@ -1,7 +1,9 @@
 package json;
 
 import java.sql.*;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 public class DatabaseIteratorExample {
     public static void main(String[] args) {
@@ -12,38 +14,44 @@ public class DatabaseIteratorExample {
         ResultSet currentRecord = null;
         int offset = 0;
         int batchSize = 4;
+        int j = 0;
 
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
+            int i = 0;
+            boolean fetchRecords = true;
 
+                String query = "SELECT * FROM users ";
+                Statement statement = connection.createStatement();
+                resultSet = statement.executeQuery(query);
+                Iterator<ResultSet> resultSetIterator = new ResultSetIterator(resultSet);
 
-int i= 0;
-while (offset <= i) {
-    String query = "SELECT * FROM users ORDER BY email OFFSET "+offset + "  FETCH FIRST "+batchSize+"  ROWS ONLY";
-    Statement statement = connection.createStatement();
-    resultSet = statement.executeQuery(query);
-    Iterator<ResultSet> resultSetIterator = new ResultSetIterator(resultSet);
-    while (resultSetIterator.hasNext()) {
-        currentRecord = resultSetIterator.next();
-        // Process the current record
-        String id = currentRecord.getString("email");
-        String name = currentRecord.getString("username");
-        // ... do something with the data
+                while (resultSetIterator.hasNext()) {
 
-        System.out.println("ID: " + id + ", Name: " + name);
-        i++;
-    }
-offset += batchSize;
-} System.out.println(i);
+                    currentRecord = resultSetIterator.next();
+
+                    int columnCount = currentRecord.getMetaData().getColumnCount();
+                    while (currentRecord.next()) {
+                        Map<String, Object> dataMap = new HashMap<>(columnCount);
+                        for (int h = 1; h <= columnCount; h++) {
+                            String columnKey = resultSet.getMetaData().getColumnName(h);
+                            Object columnValue = resultSet.getObject(h);
+                            dataMap.put(columnKey, columnValue);
+                        }
+                        System.out.println(dataMap);
+                        // ... do something with the data
+                    }
+                }
         } catch (SQLException e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             try {
-                if(resultSet != null && currentRecord != null)
-                currentRecord.close();
-                resultSet.close();
-                System.out.println(resultSet.isClosed());
-                System.out.println(currentRecord.isClosed());
-            }catch (SQLException e){
+                if (resultSet != null && currentRecord != null) {
+                    currentRecord.close();
+                    resultSet.close();
+                    System.out.println(resultSet.isClosed());
+                    System.out.println(currentRecord.isClosed());
+                }
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
