@@ -24,7 +24,6 @@ public class Example {
     }
 
     public static Iterator<List<Map<String, Object>>> processData(List<Map<String, Object>> data) {
-        // Your processing logic here
         List<List<Map<String, Object>>> batches = new ArrayList<>();
 
         // Split the data into batches

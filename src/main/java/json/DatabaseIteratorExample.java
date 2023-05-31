@@ -19,28 +19,27 @@ public class DatabaseIteratorExample {
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
             int i = 0;
             boolean fetchRecords = true;
+            String query = "SELECT * FROM users ";
+            Statement statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            Iterator<ResultSet> resultSetIterator = new ResultSetIterator(resultSet);
 
-                String query = "SELECT * FROM users ";
-                Statement statement = connection.createStatement();
-                resultSet = statement.executeQuery(query);
-                Iterator<ResultSet> resultSetIterator = new ResultSetIterator(resultSet);
+            while (resultSetIterator.hasNext()) {
 
-                while (resultSetIterator.hasNext()) {
+                currentRecord = resultSetIterator.next();
 
-                    currentRecord = resultSetIterator.next();
-
-                    int columnCount = currentRecord.getMetaData().getColumnCount();
-                    while (currentRecord.next()) {
-                        Map<String, Object> dataMap = new HashMap<>(columnCount);
-                        for (int h = 1; h <= columnCount; h++) {
-                            String columnKey = resultSet.getMetaData().getColumnName(h);
-                            Object columnValue = resultSet.getObject(h);
-                            dataMap.put(columnKey, columnValue);
-                        }
-                        System.out.println(dataMap);
-                        // ... do something with the data
+                int columnCount = currentRecord.getMetaData().getColumnCount();
+                while (currentRecord.next()) {
+                    Map<String, Object> dataMap = new HashMap<>(columnCount);
+                    for (int h = 1; h <= columnCount; h++) {
+                        String columnKey = resultSet.getMetaData().getColumnName(h);
+                        Object columnValue = resultSet.getObject(h);
+                        dataMap.put(columnKey, columnValue);
                     }
+                    System.out.println(dataMap);
+                    // ... do something with the data
                 }
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {

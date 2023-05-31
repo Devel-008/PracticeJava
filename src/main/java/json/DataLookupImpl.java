@@ -22,11 +22,10 @@ public class DataLookupImpl {
     }
 
 
-    public Iterator<List<Map<String, Object>>> lookupInBatches(String sqlQuery, Map<String, Object> namedParameters, Integer batchSize) {
+    public void lookupInBatches(String sqlQuery, Map<String, Object> namedParameters, Integer batchSize) {
         logger.info("Executing :: DataLookupImpl.lookupInBatches");
         Iterator<List<Map<String, Object>>> hello = fetchDataIteratorBatch(sqlQuery,batchSize,createConnection());
         logger.info("Exiting :: DataLookupImpl.lookupInBatches");
-        return hello;
     }
     private Iterator<List<Map<String, Object>>> fetchDataIteratorBatch(String sqlQuery, Integer batchSize, Connection connection){
         Iterator<List<Map<String, Object>>> listIterator = null;
@@ -175,6 +174,7 @@ public class DataLookupImpl {
         }
         return dataList.iterator();
     }
+
 
     private Connection createConnection() {
         Connection connection;
