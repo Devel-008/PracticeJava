@@ -1,0 +1,240 @@
+package com.barracuda.security;
+
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.util.ArrayIterator;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigValue;
+import org.apache.commons.cli.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
+
+public class SqlTool {
+    private static final Logger logger = LoggerFactory.getLogger(SqlToJsonTool.class);
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * @param params params[0] - the name of the action
+     *               params[1] - path to config file
+     *               params[2] - output folder location
+     */
+    public static void main(String[] params) throws Exception {
+        logger.info("Executing :: SqlToJsonTool");
+        if (params == null || params.length != 10) {
+            throw new IllegalArgumentException("Please specify all the required parameters.");
+        }
+        String actionName;
+        String configFileName;
+        String outputFolder;
+        String userName;
+        char[] password;
+        if (getCommandLine(params).hasOption("actionName") && getCommandLine(params).hasOption("configFile")
+                && getCommandLine(params).hasOption("outputFolder") && getCommandLine(params).hasOption("userName")
+                && getCommandLine(params).hasOption("password")) {
+            actionName = getCommandLine(params).getOptionValue("actionName");
+            configFileName = getCommandLine(params).getOptionValue("configFile");
+            outputFolder = getCommandLine(params).getOptionValue("outputFolder");
+            userName = getCommandLine(params).getOptionValue("userName");
+            password = getCommandLine(params).getOptionValue("password").toCharArray();
+        } else {
+            throw new IllegalArgumentException("Required arguments missing!!");
+        }
+        File folderLocation = new File(outputFolder);
+        if (!folderLocation.exists()) {
+            throw new IllegalArgumentException("Folder doesn't exist");//TODO
+        }
+        logger.debug("actionName : {}, configFileName : {}, folderOutput : {}",
+                actionName, configFileName, outputFolder);
+        writeData(configFileName,actionName,userName,password,folderLocation);
+        logger.info("Exiting :: SqlToJsonTool");
+    }
+
+    private static CommandLine getCommandLine(String[] params) throws ParseException {
+        CommandLineParser parser = new DefaultParser();
+        CommandLine commandLine = parser.parse(optionCreator(), params);
+        return commandLine;
+    }
+
+    private static Config getConfig(String configFileName){
+        Config config = ConfigFactory.parseFile(new File(configFileName));
+        return config;
+    }
+    private static Config getActionConfig(String configFileName,String actionName){
+        Config actionConfig = getConfig(configFileName).getConfig(actionName);
+        return actionConfig;
+    }
+
+    private static void writeData( String configFileName,String actionName, String userName, char[] password, File folderLocation) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+        if (getBatchSize(getConfig(configFileName)) > 0){
+            List<List<Map<String, Object>>> batchList = new ArrayList<>();
+            List<Map<String, Object>> dataList = new ArrayList<>();
+            Iterator<List<Map<String, Object>>> dataIterator = extractDataInBatch(getConfig(configFileName), getActionConfig(configFileName,actionName), userName, password);
+            while (dataIterator.hasNext()) {
+                dataList = dataIterator.next();
+                batchList.add(dataList);
+            }
+            JsonNode node = null;
+            for (List<Map<String, Object>> maps : batchList) {
+                node = transform(getActionConfig(configFileName,actionName), maps);
+                String fileName = actionName + "_" + new Date().getTime();
+                writeJsonToFile(node, folderLocation, fileName);
+            }
+        }else {
+            List<Map<String, Object>> data = extractData(getConfig(configFileName), getActionConfig(configFileName,actionName),userName,password);
+            JsonNode node = transform(getActionConfig(configFileName,actionName), data);
+            String fileName = actionName + "_" + new Date().getTime();
+            if (!node.isEmpty()) {
+                writeJsonToFile(node, folderLocation, fileName);
+            } else {
+                logger.error("Error occured while writing json to the file");
+                throw new IllegalArgumentException("Error occured while writing json to the file");
+            }
+        }
+    }
+
+    private static JsonNode transform(Config config, List<Map<String, Object>> data) throws IOException {
+        String jsonSchemaFilePath = config.getString("jsonSchemaFileLocation");
+        JsonNode schema = mapper.readTree(new File(jsonSchemaFilePath));
+        JsonNode node = JsonUtility.convertToJson(data, schema);
+        return node;
+    }
+
+    private static List<Map<String, Object>> extractData
+            (Config config, Config actionConfig, String userName,
+             char[] password) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        List<Map<String, Object>> data;
+        IDataLookup dataProvider;
+        if (getDataLookupClassName(config).isEmpty()) {
+            dataProvider = new DataLookupImpl(getDriverClassName(config), getDatabaseUrl(config), userName, password);
+        } else {
+            logger.info("Executing :: MockDataLookup");
+            Class<?> dataLookupClazz = Class.forName(getDataLookupClassName(config));
+            Object dataLookupObj = dataLookupClazz.newInstance();
+            if (dataLookupClazz.isAssignableFrom(IDataLookup.class)) {
+                dataProvider = (IDataLookup) dataLookupObj;
+            } else {
+                throw new IllegalArgumentException("Not able to access DataLookup!!");//TODO
+            }
+            logger.info("Exiting :: MockDataLookup");
+        }
+        data = dataProvider.lookup(getQuery(actionConfig), getNamedParameters(actionConfig), getBatchSize(config));
+        return data;
+    }
+
+    //this method is to get data in batch using iterator
+    private static Iterator<List<Map<String, Object>>> extractDataInBatch
+    (Config config, Config actionConfig, String userName, char[] password) {
+        DataLookupImpl dataLookup = new DataLookupImpl(getDriverClassName(config), getDatabaseUrl(config),
+                userName, password);
+        Iterator<List<Map<String, Object>>> dataIterator = dataLookup.lookupInBatches(getQuery(actionConfig),
+                getNamedParameters(actionConfig), getBatchSize(config));
+        return dataIterator;
+    }
+
+    //get method to get required values
+    private static Integer getBatchSize(Config config) {
+        Integer sqlBatchSize = config.getInt("sqlBatchSize");
+        return sqlBatchSize;
+    }
+
+    private static String getDriverClassName(Config config) {
+        String driverClassName = config.getString("driverClassName");
+        return driverClassName;
+    }
+
+    private static String getDatabaseUrl(Config config) {
+        String databaseURL = config.getString("databaseURL");
+        return databaseURL;
+    }
+
+    private static String getQuery(Config actionConfig) {
+        String sqlQuery = actionConfig.getString("sqlQuery");
+        return sqlQuery;
+    }
+
+    private static Map<String, Object> getNamedParameters(Config actionConfig) {
+        Map<String, Object> namedParameter = new HashMap<>();
+        for (Map.Entry<String, ConfigValue> dataMap : actionConfig.getObject("queryParameters").entrySet()) {
+            String key = dataMap.getKey();
+            Object value = dataMap.getValue().unwrapped();
+            namedParameter.put(key, value);
+        }
+        return namedParameter;
+    }
+
+    private static String getDataLookupClassName(Config config) {
+        String dataLookupClassName = config.getString("dataLookupImpl");
+        return dataLookupClassName;
+    }
+
+    private static void writeJsonToFile(JsonNode node, File folderLocation, String fileName) throws IOException {
+        boolean b;
+        if (!folderLocation.exists()) {
+            b = folderLocation.mkdir();
+            if (b) {
+                logger.info("Folder Created");
+            }
+        }
+        File file = new File(folderLocation, fileName);
+        if (!file.exists()) {
+            b = file.createNewFile();
+            if (b) {
+                logger.info("File created!!");
+                try (FileWriter fileWriter = new FileWriter(file)) {
+                    fileWriter.write(node.toPrettyString());
+                    logger.info("Data saved!!");
+                } catch (IOException e) {
+                    logger.error("Data not saved");
+                    throw new IOException("Not able to write in the file");
+                }
+            }
+        }
+    }
+
+    private static Options optionCreator() {
+        Options options = new Options();
+        Option optionAction = Option.builder()
+                .longOpt("actionName")
+                .argName("actionName")
+                .hasArg()
+                .desc("the name of action")
+                .build();
+        Option optionConfigFile = Option.builder()
+                .longOpt("configFile")
+                .argName("configFile")
+                .hasArg()
+                .desc("path to config file")
+                .build();
+        Option optionFolderLocation = Option.builder()
+                .longOpt("outputFolder")
+                .argName("outputFolder")
+                .hasArg()
+                .desc("output folder location")
+                .build();
+        Option userName = Option.builder()
+                .longOpt("userName")
+                .argName("userName")
+                .hasArg()
+                .desc("provide username")
+                .build();
+        Option password = Option.builder()
+                .longOpt("password")
+                .argName("password")
+                .hasArg()
+                .desc("provide password")
+                .build();
+        options.addOption(optionAction);
+        options.addOption(optionConfigFile);
+        options.addOption(optionFolderLocation);
+        options.addOption(userName);
+        options.addOption(password);
+        return options;
+    }
+}

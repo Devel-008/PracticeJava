@@ -67,7 +67,7 @@ public class Main {
         dataMap2.put("email","roman@hotmail.com");
         data.add(dataMap2);
         ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode jsonNode = objectMapper.readTree(new File("src/main/resources/schema.json"));
+        JsonNode jsonNode = objectMapper.readTree(new File("src/main/resources/schema123.json"));
         List<List<Map<String,Object>>> dataList = new ArrayList<>();
         dataList.add(data);
 

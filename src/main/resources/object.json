@@ -1,0 +1,15 @@
+{
+  "custom_password_hash": {
+    "parallelization": 93549319,
+    "hash": {
+      "digest": "md4",
+      "encoding": "base64",
+      "value": "ea Excepteur mollit Lorem adipisicing",
+      "key": {
+        "encoding": "base64",
+        "value": "aute ex eu non"
+      }
+    },
+    "algorithm" : "argon2"
+  }
+}

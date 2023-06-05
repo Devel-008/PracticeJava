@@ -1,0 +1,15 @@
+{
+  "mfa_factors" : [ {
+    "totp" : {
+      "secret" : "36PW2G5"
+    }
+  }, {
+    "phone" : {
+      "value" : "+2518"
+    }
+  }, {
+    "totp" : {
+      "secret" : "QS2"
+    }
+  } ]
+}
